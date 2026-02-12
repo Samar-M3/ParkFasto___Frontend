@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { Camera, Mail, Lock, LogOut, ChevronRight, User as UserIcon } from 'lucide-react';
+import { QRCodeCanvas } from "qrcode.react";
+import { Camera, Mail, Lock, LogOut, ChevronRight, User as UserIcon, Download, X, QrCode } from 'lucide-react';
 import '../styles/Profile.css';
 
 function Profile() {
@@ -10,6 +11,10 @@ function Profile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrData, setQrData] = useState(null);
+  const [qrId, setQrId] = useState(null);
+  const qrRef = useRef();
   const [editForm, setEditForm] = useState({
     firstName: '',
     lastName: '',
@@ -108,6 +113,61 @@ function Profile() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     window.location.href = '/login';
+  };
+
+  const handleGenerateQR = async () => {
+    if (user) {
+      try {
+        setLoading(true);
+        const qrDataString = JSON.stringify({
+          userId: user._id,
+          username: user.username,
+          email: user.email,
+          timestamp: new Date().toISOString(),
+          action: 'check-in/out'
+        });
+
+        // Save QR code to backend database
+        const token = localStorage.getItem('token');
+        const response = await axios.post(
+          'http://localhost:8000/api/v1/qr/generate',
+          { qrData: qrDataString },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (response.data.success) {
+          setQrData(qrDataString);
+          setQrId(response.data.data._id);
+          setShowQRModal(true);
+        } else {
+          alert('Failed to generate QR code');
+        }
+      } catch (err) {
+        console.error('Error generating QR code:', err);
+        alert('Failed to generate QR code. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleDownloadQR = () => {
+    if (qrRef.current) {
+      const canvas = qrRef.current.querySelector('canvas');
+      if (canvas) {
+        const link = document.createElement('a');
+        link.href = canvas.toDataURL('image/png');
+        link.download = `parking-qr-${user?.username}-${new Date().getTime()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    }
   };
 
   if (loading && !user) {
@@ -299,6 +359,24 @@ function Profile() {
           </section>
 
           <section className="profile-actions-section">
+            <h3 className="section-title">Check-In/Out QR Code</h3>
+            <div className="action-links">
+              <button 
+                onClick={handleGenerateQR}
+                className="action-item qr-btn"
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="action-icon"><QrCode size={20} /></div>
+                <span className="action-label">Generate Check-In QR</span>
+                <ChevronRight size={18} className="chevron" />
+              </button>
+            </div>
+            <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '12px' }}>
+              Generate a unique QR code for parking check-in and check-out. The guard will scan this code to verify your timing.
+            </p>
+          </section>
+
+          <section className="profile-actions-section">
             <h3 className="section-title">Settings & Security</h3>
             <div className="action-links">
               <Link to="/forgot-password" className="action-item">
@@ -315,6 +393,65 @@ function Profile() {
           </section>
         </div>
       </div>
+
+      {/* QR Code Modal */}
+      {showQRModal && (
+        <div className="qr-modal-backdrop" onClick={() => setShowQRModal(false)}>
+          <div className="qr-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="qr-modal-header">
+              <h2>Your Check-In/Out QR Code</h2>
+              <button 
+                className="qr-modal-close"
+                onClick={() => setShowQRModal(false)}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="qr-modal-content">
+              <p className="qr-info-text">
+                Show this QR code to the parking lot guard for check-in and check-out. The code contains your user information and timestamp.
+              </p>
+
+              <div className="qr-code-container" ref={qrRef}>
+                {qrData && (
+                  <QRCodeCanvas
+                    value={qrData} 
+                    size={256}
+                    level="H"
+                    includeMargin={true}
+                    fgColor="#000000"
+                    bgColor="#FFFFFF"
+                  />
+                )}
+              </div>
+
+              <div className="qr-user-info">
+                <p><strong>User:</strong> {user?.username}</p>
+                <p><strong>Email:</strong> {user?.email}</p>
+                <p><strong>Generated:</strong> {new Date().toLocaleString()}</p>
+                {qrId && <p><strong>QR ID:</strong> {qrId.substring(0, 8)}...</p>}
+              </div>
+
+              <div className="qr-modal-actions">
+                <button 
+                  className="download-qr-btn"
+                  onClick={handleDownloadQR}
+                >
+                  <Download size={18} />
+                  Download QR Code
+                </button>
+                <button 
+                  className="close-qr-btn"
+                  onClick={() => setShowQRModal(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

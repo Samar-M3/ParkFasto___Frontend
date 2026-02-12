@@ -4,6 +4,7 @@ const userRouter = require("./user.router");
 const parkingRouter = require("./parking.router");
 const adminRouter = require("./admin.router");
 const contactRouter = require("./contact.route");
+const qrRouter = require("./qr.router");
 
 const routers = [
   {
@@ -34,5 +35,6 @@ router.use("/parking", parkingRouter);
 router.use("/admin", adminRouter);
 router.use("/test", testRouter);
 router.use("/contact", contactRouter);
+router.use("/qr", qrRouter);
 
 module.exports = router;
