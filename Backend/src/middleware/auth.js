@@ -1,12 +1,15 @@
 const jwt = require("jsonwebtoken");
 const User=require("../models/User.model")
 
+/**
+ * Authentication Middleware
+ * Verifies the JWT token from the Authorization header and attaches the user to the request object.
+ */
 const isauthenticated = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     
-    console.log('Auth Header:', authHeader); // Debug log
-    
+    // Check if Bearer token is provided
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ 
         success: false,
@@ -16,37 +19,30 @@ const isauthenticated = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
     
-    console.log('Token:', token.substring(0, 30) + '...'); // Debug log
-    
+    // Verify JWT using the secret key
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    console.log('Decoded token:', decoded); // See what's in the token
-    
-    // Your token has _id, not id
+    // Support both '_id' (standard Mongo) and 'id' in token payload
     const userId = decoded._id || decoded.id;
-    
-    console.log('Looking for user with ID:', userId); // Debug log
     
     const foundUser = await User.findById(userId);
     
     if (!foundUser) {
-      console.log('User not found in database'); // Debug log
       return res.status(404).json({ 
         success: false,
         message: "User not found" 
       });
     }
 
-    console.log('User found:', foundUser.username); // Debug log
-    
+    // Attach user information to the request for subsequent middleware/routes
     req.user = foundUser;
     req.userId = foundUser._id;
     next();
     
   } catch (err) {
-    console.error('Auth Error:', err.message); // See the actual error!
+    console.error('Auth Error:', err.message);
     
-    // Give more specific error messages
+    // Handle specific JWT error cases
     if (err.name === 'JsonWebTokenError') {
       return res.status(401).json({ 
         success: false,
@@ -69,32 +65,42 @@ const isauthenticated = async (req, res, next) => {
   }
 };
 
-const Isadmin=(req,res,next)=>{
-    const user=req.user
-    if(user.role==="superadmin"){
-        next()
-    }else{
-        res.status(403).send({message:"forbidden"})
+/**
+ * Authorization Middleware: Super Admin
+ * Restricts access to superadmin users only.
+ */
+const Isadmin = (req, res, next) => {
+    const user = req.user;
+    if (user.role === "superadmin") {
+        next();
+    } else {
+        res.status(403).send({ message: "Forbidden: Admin access required" });
     }
-}
+};
 
-const Isbuyer=(req,res,next)=>{
-     const user=req.user
-    if(user.role==="buyer"){
-        next()
-    }else{
-        res.status(403).send({message:"forbidden"})
+/**
+ * Authorization Middleware: Buyer
+ */
+const Isbuyer = (req, res, next) => {
+     const user = req.user;
+    if (user.role === "buyer") {
+        next();
+    } else {
+        res.status(403).send({ message: "Forbidden: Buyer access required" });
     }
-}
+};
 
-const IsSeller=(req,res,next)=>{
-     const user=req.user
-    if(user.role==="seller"){
-        next()
-    }else{
-        res.status(403).send({message:"forbidden"})
+/**
+ * Authorization Middleware: Seller
+ */
+const IsSeller = (req, res, next) => {
+     const user = req.user;
+    if (user.role === "seller") {
+        next();
+    } else {
+        res.status(403).send({ message: "Forbidden: Seller access required" });
     }
-}
+};
 
 module.exports = {
   isauthenticated,

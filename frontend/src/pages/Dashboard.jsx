@@ -36,9 +36,12 @@ L.Icon.Default.mergeOptions({
     shadowUrl: markerShadow,
 });
 
-// --- Haversine Formula for Distance Calculation ---
+/**
+ * Haversine Formula for Distance Calculation
+ * Calculates the straight-line distance between two GPS coordinates in kilometers.
+ */
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // Radius of the earth in km
+  const R = 6371; // Earth's radius in km
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
@@ -46,15 +49,18 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
     Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; // Distance in km
+  const d = R * c; // Result in km
   return d;
 };
 
+// Helper to convert degrees to radians
 const deg2rad = (deg) => {
   return deg * (Math.PI / 180);
 };
 
-// Custom User Location Icon
+// --- Map Customization Icons ---
+
+// User's current position marker (Blue)
 const userIcon = new L.Icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -64,7 +70,7 @@ const userIcon = new L.Icon({
     shadowSize: [41, 41]
 });
 
-// Custom Parking Icon
+// Parking lot location marker (Green)
 const parkingIcon = new L.Icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -74,7 +80,10 @@ const parkingIcon = new L.Icon({
     shadowSize: [41, 41]
 });
 
-// Component to handle map recentering
+/**
+ * RecenterMap Component
+ * Automatically moves the map view to the user's current position.
+ */
 const RecenterMap = ({ position }) => {
   const map = useMap();
   useEffect(() => {
@@ -85,7 +94,10 @@ const RecenterMap = ({ position }) => {
   return null;
 };
 
-// --- Component to handle routing path ---
+/**
+ * RoutingMachine Component
+ * Uses Leaflet Routing Machine to draw the path from user to a parking lot.
+ */
 const RoutingMachine = ({ userLoc, destinationLoc }) => {
   const map = useMap();
 

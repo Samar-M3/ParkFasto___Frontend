@@ -1,13 +1,16 @@
 const ParkingLot = require("../models/ParkingLot.model");
 const ParkingSession = require("../models/ParkingSession.model");
 
-// Get bookings/history for authenticated user
+/**
+ * User Bookings Controller
+ * Retrieves all parking history (active and completed) for the logged-in user.
+ */
 exports.getUserBookings = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const sessions = await ParkingSession.find({ user: userId })
-      .populate("parkingLot")
-      .sort({ createdAt: -1 });
+      .populate("parkingLot") // Join with parking lot details
+      .sort({ createdAt: -1 }); // Newest bookings first
 
     res.status(200).json({ success: true, data: sessions });
   } catch (error) {
@@ -15,19 +18,24 @@ exports.getUserBookings = async (req, res, next) => {
   }
 };
 
-// Get all parking lots
+/**
+ * Get All Parking Lots
+ * Fetches all available parking locations. If user coordinates are provided,
+ * it calculates the distance and sorts them by proximity.
+ */
 exports.getAllParkingLots = async (req, res, next) => {
   try {
     const { lat, lon } = req.query;
     let lots = await ParkingLot.find();
 
+    // Proximity calculation logic
     if (lat && lon) {
       const userLat = parseFloat(lat);
       const userLon = parseFloat(lon);
 
-      // Simple Haversine-like distance sorting if coordinates provided
       lots = lots
         .map((lot) => {
+          // Haversine formula implementation for spherical distance
           const dLat = ((lot.lat - userLat) * Math.PI) / 180;
           const dLon = ((lot.lon - userLon) * Math.PI) / 180;
           const a =
@@ -37,10 +45,10 @@ exports.getAllParkingLots = async (req, res, next) => {
               Math.sin(dLon / 2) *
               Math.sin(dLon / 2);
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          const distance = 6371 * c; // Earth's radius in km
+          const distance = 6371 * c; // Result in kilometers
           return { ...lot.toObject(), distance };
         })
-        .sort((a, b) => a.distance - b.distance);
+        .sort((a, b) => a.distance - b.distance); // Nearest lots first
     }
 
     res.status(200).json({ success: true, data: lots });
@@ -49,7 +57,10 @@ exports.getAllParkingLots = async (req, res, next) => {
   }
 };
 
-// Get active session for a user
+/**
+ * Get Active Session
+ * Checks if the user currently has an ongoing parking session.
+ */
 exports.getActiveSession = async (req, res, next) => {
   try {
     const session = await ParkingSession.findOne({
@@ -63,12 +74,15 @@ exports.getActiveSession = async (req, res, next) => {
   }
 };
 
-// Start a parking session (Seed data or real booking)
+/**
+ * Start Parking Session
+ * Initializes a new parking session, checks for duplicates, and updates lot occupancy.
+ */
 exports.startSession = async (req, res, next) => {
   try {
     const { parkingLotId, vehicleType } = req.body;
 
-    // Check if user already has an active session
+    // Prevention: User can only have ONE active session at a time
     const existingSession = await ParkingSession.findOne({
       user: req.user._id,
       status: "active",
@@ -81,13 +95,14 @@ exports.startSession = async (req, res, next) => {
       });
     }
 
+    // Create the session record
     const session = await ParkingSession.create({
       user: req.user._id,
       parkingLot: parkingLotId,
       vehicleType,
     });
 
-    // Increment occupied spots
+    // Update real-time occupancy of the chosen lot
     const updatedLot = await ParkingLot.findByIdAndUpdate(
       parkingLotId,
       { $inc: { occupiedSpots: 1 } },
@@ -95,13 +110,13 @@ exports.startSession = async (req, res, next) => {
     );
 
     if (updatedLot) {
+      // Dynamic status update (Available/Full)
       const newStatus =
         updatedLot.occupiedSpots >= updatedLot.totalSpots
           ? "full"
           : "available";
-      if (updatedLot.status !== newStatus) {
-        await ParkingLot.findByIdAndUpdate(parkingLotId, { status: newStatus });
-      }
+      
+      await ParkingLot.findByIdAndUpdate(parkingLotId, { status: newStatus });
     }
 
     res.status(201).json({ success: true, data: session });

@@ -3,19 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Map as MapIcon, 
-  FileText, 
   Settings, 
-  Bell, 
   TrendingUp, 
   Car, 
   Bike, 
   Truck, 
   DollarSign, 
-  CreditCard, 
   Plus,
   LogOut,
-  ChevronRight,
-  Users
+  Users,
+  FileText
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -27,6 +24,7 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
+
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -48,12 +46,16 @@ L.Icon.Default.mergeOptions({
 const AdminDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // Dashboard State Management
+  const [activeTab, setActiveTab] = useState('dashboard'); // Tracks which sidebar tab is active
 
+  // Authentication logout handler
   const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/login');
   };
+
+  // Main KPI Statistics State
   const [stats, setStats] = useState({
     revenue: 0,
     activeSessions: 0,
@@ -61,8 +63,13 @@ const AdminDashboard = () => {
     totalUsers: 0,
     occupancyRate: 0
   });
-  const [revenueData, setRevenueData] = useState([]);
-  const [recentActivity, setRecentActivity] = useState([]);
+
+  // Revenue & Activity Data State
+  const [revenueData, setRevenueData] = useState([]); // Stores data for the Revenue Trends chart
+  const [revenuePeriod, setRevenuePeriod] = useState('7days'); // Controls the time range for revenue (7 or 30 days)
+  const [recentActivity, setRecentActivity] = useState([]); // List of latest system actions
+  
+  // Management State (Lots, Users, System Config)
   const [allLots, setAllLots] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [userSearchTerm, setUserSearchTerm] = useState('');
@@ -204,12 +211,11 @@ const AdminDashboard = () => {
     }
   };
 
+  // Main Data Fetching Effect
+  // Runs on component mount and whenever the revenue period changes
   useEffect(() => {
     const fetchAdminData = async () => {
       const token = localStorage.getItem('token');
-      // Temporarily bypass token check for development if desired, 
-      // but let's keep it and just ensure the backend doesn't reject.
-
       try {
         const headers = {
           'Content-Type': 'application/json'
@@ -219,9 +225,10 @@ const AdminDashboard = () => {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
+        // Fetch multiple data sources in parallel for better performance
         const [statsRes, trendsRes, activityRes, lotsRes] = await Promise.all([
           fetch('http://localhost:8000/api/v1/admin/stats', { headers }),
-          fetch('http://localhost:8000/api/v1/admin/revenue-trends', { headers }),
+          fetch(`http://localhost:8000/api/v1/admin/revenue-trends?period=${revenuePeriod}`, { headers }),
           fetch('http://localhost:8000/api/v1/admin/recent-activity', { headers }),
           fetch('http://localhost:8000/api/v1/admin/lots', { headers })
         ]);
@@ -237,6 +244,7 @@ const AdminDashboard = () => {
           lotsRes.json()
         ]);
 
+        // Update state with fetched data
         setStats(statsData);
         setRevenueData(trendsData);
         setRecentActivity(activityData);
@@ -253,14 +261,14 @@ const AdminDashboard = () => {
     fetchUsers();
     fetchConfig();
 
-    // Auto-refresh every 30 seconds
+    // Setup auto-refresh to keep dashboard data up-to-date
     const interval = setInterval(() => {
       fetchAdminData();
       fetchUsers();
       fetchConfig();
     }, 30000);
     return () => clearInterval(interval);
-  }, [navigate]);
+  }, [navigate, revenuePeriod]);
 
   const fetchUsers = async () => {
     const token = localStorage.getItem('token');
@@ -371,10 +379,6 @@ const AdminDashboard = () => {
             <MapIcon size={20} />
             <span>Live Map</span>
           </button>
-          <button className={activeTab === 'reports' ? 'active' : ''} onClick={() => setActiveTab('reports')}>
-            <FileText size={20} />
-            <span>Revenue Reports</span>
-          </button>
           <button className={activeTab === 'manage-lots' ? 'active' : ''} onClick={() => setActiveTab('manage-lots')}>
             <Plus size={20} />
             <span>Manage Lots</span>
@@ -401,8 +405,8 @@ const AdminDashboard = () => {
         {/* Header */}
         <header className="admin-header">
           <div className="header-title">
-            <h1>{activeTab === 'dashboard' ? 'Revenue Hub' : activeTab === 'manage-lots' ? 'Parking Management' : 'Admin Hub'}</h1>
-            <p>{activeTab === 'dashboard' ? 'PARKING MANAGEMENT' : activeTab === 'manage-lots' ? 'CRUD OPERATIONS' : 'SYSTEM SETTINGS'}</p>
+            <h1>{activeTab === 'dashboard' ? 'Revenue Hub' : activeTab === 'manage-lots' ? 'Parking Management' : activeTab === 'users' ? 'User Management' : 'Admin Hub'}</h1>
+            <p>{activeTab === 'dashboard' ? 'PARKING MANAGEMENT' : activeTab === 'manage-lots' ? 'CRUD OPERATIONS' : activeTab === 'users' ? 'ACCESS CONTROL' : 'SYSTEM SETTINGS'}</p>
           </div>
           <div className="header-actions">
             {activeTab === 'manage-lots' && (
@@ -410,10 +414,6 @@ const AdminDashboard = () => {
                 <Plus size={20} /> Add New Lot
               </button>
             )}
-            <button className="notif-btn">
-              <Bell size={24} />
-              <span className="notif-badge"></span>
-            </button>
             <div className="admin-profile-container" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div className="admin-user-info" style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
                 <span className="admin-user-name" style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>{user?.username || 'Admin'}</span>
@@ -430,21 +430,21 @@ const AdminDashboard = () => {
           <>
             {/* KPI Grid */}
             <section className="kpi-grid">
-              <div className="kpi-card main-revenue">
-                <div className="kpi-content">
-                  <span className="kpi-label">TOTAL REVENUE</span>
-                  <h2 className="kpi-value">NPR {stats.revenue.toLocaleString()}</h2>
-                  <div className="kpi-trend positive">
-                    <TrendingUp size={16} />
-                    <span>+12.5% vs last month</span>
+              <div className="kpi-row">
+                <div className="kpi-card main-revenue">
+                  <div className="kpi-info">
+                    <span className="kpi-label">TOTAL REVENUE</span>
+                    <h2 className="kpi-value">NPR {stats.revenue.toLocaleString()}</h2>
+                    <div className="kpi-trend positive">
+                      <TrendingUp size={16} />
+                      <span>+12.5% from last month</span>
+                    </div>
+                  </div>
+                  <div className="kpi-icon-box">
+                    <DollarSign size={32} />
                   </div>
                 </div>
-                <div className="kpi-icon-box">
-                  <DollarSign size={28} color="#6366f1" />
-                </div>
-              </div>
 
-              <div className="kpi-row">
                 <div className="kpi-card secondary">
                   <div className="kpi-sub-row">
                     <span className="kpi-label">ACTIVE SESSIONS</span>
@@ -481,27 +481,48 @@ const AdminDashboard = () => {
 
             {/* Charts Section */}
             <section className="admin-charts">
-              <div className="chart-container">
+              <div className="chart-card revenue-trends">
                 <div className="chart-header">
                   <h3>Revenue Trends</h3>
-                  <span className="chart-subtitle">LAST 24 HOURS</span>
+                  <div className="chart-actions">
+                    <select 
+                      className="chart-select"
+                      value={revenuePeriod}
+                      onChange={(e) => setRevenuePeriod(e.target.value)}
+                    >
+                      <option value="7days">Last 7 Days</option>
+                      <option value="30days">Last 30 Days</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="chart-wrapper">
-                  <ResponsiveContainer width="100%" height={250}>
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={revenueData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis 
-                        dataKey="time" 
+                        dataKey="name" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fontSize: 12, fill: '#94a3b8' }}
+                        tick={{fill: '#64748b', fontSize: 12}}
+                        dy={10}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{fill: '#64748b', fontSize: 12}}
+                        tickFormatter={(value) => `Rs.${value}`}
                       />
                       <Tooltip 
-                        cursor={{ fill: 'transparent' }}
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                        cursor={{fill: '#f8fafc'}}
+                        contentStyle={{
+                          borderRadius: '12px',
+                          border: 'none',
+                          boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'
+                        }}
                       />
-                      <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
+                      <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
                         {revenueData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.amount === Math.max(...revenueData.map(d => d.amount)) ? '#6366f1' : '#e2e8f0'} />
+                          <Cell key={`cell-${index}`} fill={index === revenueData.length - 1 ? '#6366f1' : '#e2e8f0'} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -509,6 +530,8 @@ const AdminDashboard = () => {
                 </div>
               </div>
             </section>
+
+
 
             {/* Activity Section */}
             <section className="recent-activity">
@@ -691,154 +714,52 @@ const AdminDashboard = () => {
                       u.username.toLowerCase().includes(userSearchTerm.toLowerCase()) || 
                       u.email.toLowerCase().includes(userSearchTerm.toLowerCase())
                     )
-                    .map(user => (
-                    <tr key={user._id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '15px 20px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <img src={user.photo} alt={user.username} style={{ width: '35px', height: '35px', borderRadius: '50%', objectFit: 'cover' }} />
-                          <span style={{ fontWeight: '600', color: '#1e293b' }}>{user.username}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '15px 20px', color: '#64748b' }}>{user.email}</td>
-                      <td style={{ padding: '15px 20px' }}>
-                        <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700', background: user.role === 'driver' ? '#eff6ff' : '#fef2f2', color: user.role === 'driver' ? '#3b82f6' : '#dc2626' }}>
-                          {user.role.toUpperCase()}
-                        </span>
-                      </td>
-                      <td style={{ padding: '15px 20px' }}>
-                        <button onClick={() => handleDeleteUser(user._id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '5px', borderRadius: '4px' }}>
-                          <Plus size={20} style={{ transform: 'rotate(45deg)' }} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {allUsers.length === 0 && (
-                    <tr>
-                      <td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No users found.</td>
-                    </tr>
-                  )}
+                    .map(u => (
+                      <tr key={u._id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '15px 20px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <img src={u.profilePic || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`} alt="" style={{ width: '32px', height: '32px', borderRadius: '8px' }} />
+                            <span style={{ fontWeight: '600', color: '#1e293b' }}>{u.username}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '15px 20px', color: '#64748b' }}>{u.email}</td>
+                        <td style={{ padding: '15px 20px' }}>
+                          <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700', background: u.role === 'admin' ? '#eef2ff' : '#f8fafc', color: u.role === 'admin' ? '#4f46e5' : '#64748b' }}>
+                            {u.role.toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={{ padding: '15px 20px' }}>
+                          <button onClick={() => handleDeleteUser(u._id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '600' }}>Delete</button>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
           </section>
         ) : activeTab === 'settings' ? (
-          <section className="admin-setup-section" style={{ padding: '30px', maxWidth: '800px' }}>
-            <div className="setup-card" style={{ background: 'white', borderRadius: '16px', padding: '30px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', border: '1px solid #f1f5f9' }}>
-              <div style={{ marginBottom: '40px' }}>
-                <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1e293b', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <TrendingUp size={24} color="#6366f1" /> AI Automation Hub
-                </h3>
-                <p style={{ color: '#64748b', marginBottom: '20px' }}>
-                  Use our AI-driven scanner to automatically detect potential parking spots across Nepal's major hubs and add them to your database.
-                </p>
-                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-                  <button 
-                    onClick={handleAIScan} 
-                    disabled={isScanning}
-                    style={{ 
-                      background: isScanning ? '#94a3b8' : '#6366f1', 
-                      color: 'white', 
-                      padding: '12px 24px', 
-                      borderRadius: '8px', 
-                      border: 'none', 
-                      cursor: isScanning ? 'not-allowed' : 'pointer', 
-                      fontWeight: '600',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    {isScanning ? 'Scanning Nepal Map...' : 'Trigger AI Map Scan'}
-                  </button>
-                  {scanResult && (
-                    <div style={{ marginTop: '15px', padding: '12px', borderRadius: '6px', background: scanResult.success ? '#f0fdf4' : '#fef2f2', color: scanResult.success ? '#16a34a' : '#dc2626', fontSize: '0.875rem', fontWeight: '500' }}>
-                      {scanResult.message}
-                    </div>
-                  )}
+          <section className="settings-section" style={{ padding: '20px' }}>
+            <div style={{ maxWidth: '600px', background: 'white', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+              <h3 style={{ marginBottom: '25px', fontSize: '1.25rem', fontWeight: '700' }}>System Configuration</h3>
+              <form onSubmit={handleSaveConfig} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: '600', color: '#64748b' }}>Currency</label>
+                  <select value={systemConfig.currency} onChange={e => setSystemConfig({...systemConfig, currency: e.target.value})} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <option value="NPR">Nepalese Rupee (NPR)</option>
+                    <option value="USD">US Dollar (USD)</option>
+                    <option value="INR">Indian Rupee (INR)</option>
+                  </select>
                 </div>
-              </div>
-
-              <div style={{ marginBottom: '40px' }}>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#1e293b', marginBottom: '20px' }}>System Preferences</h3>
-                <form onSubmit={handleSaveConfig} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>Base Currency</label>
-                    <select 
-                      value={systemConfig.currency}
-                      onChange={e => setSystemConfig({...systemConfig, currency: e.target.value})}
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff' }}
-                    >
-                      <option value="NPR">NPR (Nepalese Rupee)</option>
-                      <option value="USD">USD (US Dollar)</option>
-                      <option value="INR">INR (Indian Rupee)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>Grace Period (Mins)</label>
-                    <input 
-                      type="number" 
-                      value={systemConfig.gracePeriod}
-                      onChange={e => setSystemConfig({...systemConfig, gracePeriod: parseInt(e.target.value)})}
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>Tax Rate (%)</label>
-                    <input 
-                      type="number" 
-                      value={systemConfig.taxRate}
-                      onChange={e => setSystemConfig({...systemConfig, taxRate: parseInt(e.target.value)})}
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>System Language</label>
-                    <select 
-                      value={systemConfig.language}
-                      onChange={e => setSystemConfig({...systemConfig, language: e.target.value})}
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff' }}
-                    >
-                      <option value="English">English</option>
-                      <option value="Nepali">Nepali</option>
-                      <option value="Hindi">Hindi</option>
-                    </select>
-                  </div>
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <button type="submit" style={{ width: '100%', marginTop: '10px', background: '#1e293b', color: 'white', padding: '12px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600' }}>
-                      Save Preferences
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#1e293b', marginBottom: '20px' }}>Admin Security</h3>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', background: '#f8fafc', borderRadius: '12px' }}>
-                  <div>
-                    <h4 style={{ fontWeight: '600', color: '#1e293b' }}>Two-Factor Authentication</h4>
-                    <p style={{ fontSize: '0.875rem', color: '#64748b' }}>Add an extra layer of security to your account.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={systemConfig.twoFactorAuth} 
-                    onChange={e => {
-                      const newConfig = {...systemConfig, twoFactorAuth: e.target.checked};
-                      setSystemConfig(newConfig);
-                      const token = localStorage.getItem('token');
-                      fetch('http://localhost:8000/api/v1/admin/config', {
-                        method: 'PUT',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify(newConfig)
-                      });
-                    }}
-                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                  />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: '600', color: '#64748b' }}>Grace Period (Minutes)</label>
+                  <input type="number" value={systemConfig.gracePeriod} onChange={e => setSystemConfig({...systemConfig, gracePeriod: e.target.value})} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                 </div>
-                <button style={{ width: '100%', marginTop: '15px', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', fontWeight: '600', cursor: 'pointer', color: '#ef4444' }}>
-                  Force Logout All Sessions
-                </button>
-              </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: '600', color: '#64748b' }}>Tax Rate (%)</label>
+                  <input type="number" value={systemConfig.taxRate} onChange={e => setSystemConfig({...systemConfig, taxRate: e.target.value})} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                </div>
+                <button type="submit" style={{ marginTop: '10px', background: '#6366f1', color: 'white', padding: '12px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600' }}>Save Changes</button>
+              </form>
             </div>
           </section>
         ) : (

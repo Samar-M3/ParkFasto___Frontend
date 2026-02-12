@@ -5,16 +5,23 @@ import { QRCodeCanvas } from "qrcode.react";
 import { Camera, Mail, Lock, LogOut, ChevronRight, User as UserIcon, Download, X, QrCode } from 'lucide-react';
 import '../styles/Profile.css';
 
+/**
+ * Profile Component
+ * Manages user personal information, profile photo, and unique QR code generation.
+ */
 function Profile() {
-  const [user, setUser] = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
+  // --- Profile State ---
+  const [user, setUser] = useState(null); // Complete user object from backend
+  const [selectedFile, setSelectedFile] = useState(null); // For profile picture uploads
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [qrData, setQrData] = useState(null);
+  const [isEditing, setIsEditing] = useState(false); // Toggle for edit form modal
+  const [showQRModal, setShowQRModal] = useState(false); // Toggle for QR code modal
+  const [qrData, setQrData] = useState(null); // Data encoded in the QR code
   const [qrId, setQrId] = useState(null);
-  const qrRef = useRef();
+  const qrRef = useRef(); // Reference for downloading the QR code image
+
+  // Form state for profile updates
   const [editForm, setEditForm] = useState({
     firstName: '',
     lastName: '',
@@ -22,6 +29,7 @@ function Profile() {
     username: ''
   });
 
+  // Fetch user profile data on component mount
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -37,6 +45,8 @@ function Profile() {
             Authorization: `Bearer ${token}`,
           },
         });
+        
+        // Populate state with backend data
         setUser(response.data);
         setEditForm({
           firstName: response.data.firstName || '',
@@ -55,10 +65,16 @@ function Profile() {
     fetchUserData();
   }, []);
 
+  /**
+   * Handle Profile Picture Selection
+   */
   const handleFileChange = (event) => {
     setSelectedFile(event.target.files[0]);
   };
 
+  /**
+   * Upload Profile Picture to Server
+   */
   const handlePhotoUpload = async () => {
     if (selectedFile && user) {
       try {
@@ -78,7 +94,8 @@ function Profile() {
             'Content-Type': 'multipart/form-data',
           },
         });
-        setUser(response.data);
+        
+        setUser(response.data); // Update local user state with new photo URL
         setSelectedFile(null);
       } catch (err) {
         console.error('Failed to upload photo:', err);
@@ -89,6 +106,9 @@ function Profile() {
     }
   };
 
+  /**
+   * Update Profile Text Information (Name, Email, etc.)
+   */
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     try {

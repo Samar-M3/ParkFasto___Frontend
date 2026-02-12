@@ -17,11 +17,17 @@ import BookingHistory from './pages/BookingHistory';
 import PublicLayout from './components/PublicLayout';
 import BottomNavbar from './components/BottomNavbar';
 
+/**
+ * Layout Component
+ * Wraps the main content and adds a BottomNavbar for authenticated users
+ * who are not on admin pages.
+ */
 const Layout = ({ children }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
 
+  // Display a loading state while checking authentication
   if (loading) {
     return <div>Loading application...</div>;
   }
@@ -31,32 +37,38 @@ const Layout = ({ children }) => {
       <main>
         {children}
       </main>
+      {/* Show Bottom Navigation Bar for normal users (not admins) */}
       {user && !isAdminRoute && <BottomNavbar />}
     </div>
   );
 };
 
+/**
+ * Main App Component
+ * Configures Routing, Auth Context, and Global Providers.
+ */
 function App() {
   return (
     <Router>
-      <AuthProvider> {/* Wrap the entire application with AuthProvider */}
-        <LocationProvider>
+      <AuthProvider> {/* Global Authentication State Provider */}
+        <LocationProvider> {/* User Location Data Provider */}
           <Layout>
           <Routes>
-            {/* Public routes */}
+            {/* --- Public Routes (No Login Required) --- */}
             <Route path="/" element={<HomeRedirect />} />
             <Route path="/login" element={<PublicLayout><Login /></PublicLayout>} />
             <Route path="/register" element={<PublicLayout><Register /></PublicLayout>} />
-            <Route path="/forgot-password" element={<ForgotPassword />} /> {/* Add forgot password route */}
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
-            {/* Protected routes */}
+            {/* --- Protected Routes (Login Required) --- */}
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            {/* Admin only route */}
             <Route path="/admin" element={<ProtectedRoute roles={['superadmin']}><AdminDashboard /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/contact" element={<ProtectedRoute><Contact /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute><BookingHistory /></ProtectedRoute>} />
             
-            {/* Catch-all route */}
+            {/* 404 Not Found Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Layout>

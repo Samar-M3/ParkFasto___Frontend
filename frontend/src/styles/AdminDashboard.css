@@ -201,10 +201,6 @@
   align-items: center;
 }
 
-.main-revenue {
-  background: white;
-}
-
 .kpi-label {
   font-size: 0.875rem;
   font-weight: 600;
@@ -213,39 +209,47 @@
   margin-bottom: 8px;
 }
 
+.kpi-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 20px;
+}
+
+.kpi-card.main-revenue {
+  background: var(--admin-primary);
+  color: white;
+}
+
+.kpi-card.main-revenue .kpi-label {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 .kpi-value {
-  font-size: 2rem;
+  font-size: 1.75rem;
   font-weight: 800;
-  color: var(--admin-primary);
-  margin: 0;
+  margin: 4px 0 12px 0;
 }
 
 .kpi-trend {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 0.875rem;
-  margin-top: 8px;
+  font-weight: 600;
 }
 
 .kpi-trend.positive {
-  color: var(--admin-success);
+  color: #c7d2fe;
 }
 
 .kpi-icon-box {
-  width: 60px;
-  height: 60px;
-  background: var(--admin-primary-light);
+  width: 64px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.2);
   border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.kpi-row {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr;
-  gap: 20px;
 }
 
 .kpi-card.secondary {
@@ -328,7 +332,7 @@
   margin-bottom: 32px;
 }
 
-.chart-container {
+.chart-card {
   background: white;
   padding: 24px;
   border-radius: 24px;
@@ -348,15 +352,20 @@
   margin: 0;
 }
 
-.chart-subtitle {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--admin-text-sub);
-  letter-spacing: 0.05em;
+.chart-select {
+  background: var(--admin-bg);
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--admin-text-main);
+  outline: none;
 }
 
-.chart-wrapper {
-  margin-left: -20px; /* Adjust for XAxis labels */
+.chart-container {
+  height: 300px;
+  width: 100%;
 }
 
 /* Activity Section */

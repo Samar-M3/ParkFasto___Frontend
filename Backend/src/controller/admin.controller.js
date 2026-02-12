@@ -252,33 +252,55 @@ exports.aiDetectParking = async (req, res, next) => {
   }
 };
 
+/**
+ * Fetches revenue data for the admin dashboard chart.
+ * Aggregates totalAmount from completed ParkingSessions grouped by date.
+ * Supports '7days' and '30days' time periods via query param.
+ */
 exports.getRevenueTrends = async (req, res, next) => {
   try {
-    // Get revenue for the last 24 hours, grouped by hour
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const { period = "7days" } = req.query;
+    let days = 7;
+    if (period === "30days") days = 30;
 
+    // Calculate start date based on requested period
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    // MongoDB Aggregation Pipeline
     const trends = await ParkingSession.aggregate([
       {
         $match: {
           status: "completed",
-          endTime: { $gte: oneDayAgo },
+          endTime: { $gte: startDate },
         },
       },
       {
         $group: {
-          _id: { $hour: "$endTime" },
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$endTime" },
+          },
           amount: { $sum: "$totalAmount" },
         },
       },
       { $sort: { _id: 1 } },
     ]);
 
-    // Format for frontend (ensuring all 24 hours are present if needed,
-    // but for now just returning what we have)
-    const formattedTrends = trends.map((item) => ({
-      time: `${item._id.toString().padStart(2, "0")}:00`,
-      amount: item.amount,
-    }));
+    // Map day numbers to readable names for the frontend chart
+    const daysMap = {
+      0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat",
+    };
+
+    // Format data for Recharts (frontend library)
+    const formattedTrends = trends.map((item) => {
+      const date = new Date(item._id);
+      return {
+        name: daysMap[date.getDay()], // Day name (e.g., Mon)
+        fullDate: item._id,           // ISO Date string
+        revenue: item.amount,         // Total amount for that day
+      };
+    });
 
     res.json(formattedTrends);
   } catch (error) {
@@ -286,6 +308,10 @@ exports.getRevenueTrends = async (req, res, next) => {
   }
 };
 
+/**
+ * Fetches the 10 most recent parking sessions across the entire system.
+ * Populates user and parking lot details for display.
+ */
 exports.getRecentActivity = async (req, res, next) => {
   try {
     const activities = await ParkingSession.find()
@@ -294,9 +320,10 @@ exports.getRecentActivity = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .limit(10);
 
+    // Transform raw MongoDB documents into clean objects for UI display
     const formattedActivities = activities.map((session) => ({
       id: session._id,
-      plate: session.user ? session.user.name : "Unknown", // Assuming name is used as plate for now or user has plate
+      plate: session.user ? session.user.name : "Unknown",
       time: new Date(session.startTime).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
