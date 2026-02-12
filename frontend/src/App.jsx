@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LocationProvider } from './context/LocationContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import HomeRedirect from './components/HomeRedirect';
 import Login from './pages/Login';
@@ -12,6 +13,7 @@ import ForgotPassword from './pages/ForgotPassword'; // Ensure ForgotPassword is
 import './styles/global.css';
 import Profile from './pages/Profile';
 import Contact from './pages/Contact';
+import BookingHistory from './pages/BookingHistory';
 import PublicLayout from './components/PublicLayout';
 import BottomNavbar from './components/BottomNavbar';
 
@@ -38,7 +40,8 @@ function App() {
   return (
     <Router>
       <AuthProvider> {/* Wrap the entire application with AuthProvider */}
-        <Layout>
+        <LocationProvider>
+          <Layout>
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<HomeRedirect />} />
@@ -51,11 +54,13 @@ function App() {
             <Route path="/admin" element={<ProtectedRoute roles={['superadmin']}><AdminDashboard /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/contact" element={<ProtectedRoute><Contact /></ProtectedRoute>} />
+            <Route path="/history" element={<ProtectedRoute><BookingHistory /></ProtectedRoute>} />
             
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </Layout>
+          </Layout>
+        </LocationProvider>
       </AuthProvider>
     </Router>
   );

@@ -31,6 +31,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import '../styles/AdminDashboard.css';
+import { useAuth } from '../context/AuthContext';
 
 // Fix Leaflet marker icon issues
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -45,6 +46,7 @@ L.Icon.Default.mergeOptions({
 });
 
 const AdminDashboard = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -412,7 +414,15 @@ const AdminDashboard = () => {
               <Bell size={24} />
               <span className="notif-badge"></span>
             </button>
-            <div className="admin-profile-pic"></div>
+            <div className="admin-profile-container" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="admin-user-info" style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
+                <span className="admin-user-name" style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>{user?.username || 'Admin'}</span>
+                <span className="admin-user-role" style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>{user?.role || 'Super Admin'}</span>
+              </div>
+              <div className="admin-profile-pic" style={{ width: '40px', height: '40px', borderRadius: '10px', overflow: 'hidden', border: '2px solid #6366f1' }}>
+                <img src={user?.profilePic || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'Admin'}`} alt="Admin" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            </div>
           </div>
         </header>
 

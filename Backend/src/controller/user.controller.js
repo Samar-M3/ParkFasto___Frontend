@@ -22,10 +22,16 @@ const upload = multer({ storage: storage });
 // const pid = new mongoose.Types.ObjectId(productId);
 
 const signupSchema = Joi.object({
-  username: Joi.string().min(3).max(30).required().messages({
+  firstName: Joi.string().required().messages({
+    "string.empty": "First name is required",
+  }),
+
+  lastName: Joi.string().required().messages({
+    "string.empty": "Last name is required",
+  }),
+
+  username: Joi.string().min(3).max(30).optional().messages({
     "string.base": "Username must be a text value",
-    // "string.alphanum": "Username must only contain letters and numbers",
-    "string.empty": "Username is required",
     "string.min": "Username must be at least 3 characters",
     "string.max": "Username cannot be more than 30 characters",
   }),
@@ -104,9 +110,10 @@ const login = async (req, res) => {
     const tokenPayload = {
       _id: user._id,
       username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
       email: user.email,
       role: user.role,
-      
     };
 
     // Generate token with expiration
@@ -124,6 +131,8 @@ const login = async (req, res) => {
       user: {
         _id: user._id,
         username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
         role: user.role,
       },
@@ -166,8 +175,13 @@ const signup = async (req, res) => {
     const saltrounds = 10;
     const hash = bcrypt.hashSync(value.password, saltrounds);
 
+    // Generate username if not provided
+    const username =
+      value.username ||
+      `${value.firstName.toLowerCase()}_${value.lastName.toLowerCase()}${Math.floor(Math.random() * 1000)}`;
+
     // Create user
-    const user = await User.create({ ...value, password: hash });
+    const user = await User.create({ ...value, username, password: hash });
 
     // Create token payload (without password)
     const userObject = user.toObject();
@@ -185,6 +199,8 @@ const signup = async (req, res) => {
       user: {
         _id: user._id,
         username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
         role: user.role,
       },
@@ -214,7 +230,7 @@ const getProfile = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
-    const { username, email } = req.body;
+    const { firstName, lastName, username, email } = req.body;
     let photoUrl = req.body.photo; // Default to existing photo if not updated
 
     if (req.file) {
@@ -226,15 +242,15 @@ const updateProfile = async (req, res) => {
           width: 150,
           height: 150,
           crop: "fill",
-        }
+        },
       );
       photoUrl = result.secure_url;
     }
 
     const updatedUser = await User.findByIdAndUpdate(
       req.user._id,
-      { username, email, photo: photoUrl },
-      { new: true, runValidators: true }
+      { firstName, lastName, username, email, photo: photoUrl },
+      { new: true, runValidators: true },
     ).select("-password");
 
     if (!updatedUser) {
@@ -315,8 +331,7 @@ const forgotPassword = async (req, res) => {
       console.error("Email sending error:", emailError);
       return res.status(500).json({
         success: false,
-        message:
-          "There was an error sending the email. Try again later!",
+        message: "There was an error sending the email. Try again later!",
       });
     }
   } catch (err) {
@@ -324,7 +339,6 @@ const forgotPassword = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 module.exports = {
   signup,

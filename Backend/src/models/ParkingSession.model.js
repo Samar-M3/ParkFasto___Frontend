@@ -15,7 +15,13 @@ const parkingSessionSchema = new mongoose.Schema({
     vehicleType: {
         type: String,
         enum: ["car", "bike"],
-        required: true
+        required: false,
+        default: "car"
+    },
+    slots: {
+        type: Number,
+        default: 1,
+        min: 1
     },
     startTime: {
         type: Date,
@@ -30,7 +36,7 @@ const parkingSessionSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ["active", "completed"],
+        enum: ["booked", "active", "completed"],
         default: "active"
     }
 }, { timestamps: true });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   Bell, 
@@ -12,8 +12,11 @@ import {
   Car,
   Bike,
   Zap,
-  ChevronRight
+  ChevronRight,
+  Menu
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useLocationContext } from '../context/LocationContext';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-routing-machine';
@@ -114,13 +117,18 @@ const RoutingMachine = ({ userLoc, destinationLoc }) => {
 const Dashboard = () => {
   // --- State Management ---
   const [isParked, setIsParked] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSession, setActiveSession] = useState(null);
   const [parkingLots, setParkingLots] = useState([]);
   const [timer, setTimer] = useState('00:00:00');
   const [currentBill, setCurrentBill] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [userLocation, setUserLocation] = useState(null);
-  const [trackingEnabled, setTrackingEnabled] = useState(false);
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionsRef = useRef(null);
+  const { userLocation, trackingEnabled, startTracking } = useLocationContext();
+  const handleRequestLocation = startTracking;
+
   const [mapCenter, setMapCenter] = useState([27.7172, 85.3240]); // Default to Kathmandu
   const [activeCategory, setActiveCategory] = useState('car');
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
@@ -183,7 +191,7 @@ const Dashboard = () => {
           const newLat = parseFloat(lat);
           const newLon = parseFloat(lon);
           setMapCenter([newLat, newLon]);
-          setTrackingEnabled(true); // Show the map if a location is found
+          startTracking(); // Show the map and start live tracking if a location is found
           
           // Fetch nearby lots for the searched location
           fetchData(newLat, newLon);
@@ -196,48 +204,129 @@ const Dashboard = () => {
     }
   };
 
-  // --- Logic: Live Geolocation Tracking ---
+  // Debounced suggestions: combine known lots and Nominatim place suggestions
   useEffect(() => {
-    let watchId = null;
-
-    if (trackingEnabled && "geolocation" in navigator) {
-      watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setUserLocation([latitude, longitude]);
-          console.log("Updated location:", latitude, longitude);
-          
-          // Re-calculate distances for existing lots without fetching again
-          setParkingLots(prevLots => {
-            const updated = prevLots.map(lot => ({
-              ...lot,
-              distance: calculateDistance(latitude, longitude, lot.lat, lot.lon)
-            })).sort((a, b) => a.distance - b.distance);
-            return updated;
-          });
-
-          // Fetch nearby lots based on real location
-          fetchData(latitude, longitude);
-        },
-        (error) => {
-          console.error("Error tracking location:", error);
-          alert("Please enable location services to use the live map.");
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 5000,
-          maximumAge: 0
-        }
-      );
+    if (!searchQuery.trim()) {
+      setSearchSuggestions([]);
+      return;
     }
 
-    return () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-    };
-  }, [trackingEnabled]);
+    const timeout = setTimeout(async () => {
+      try {
+        const lower = searchQuery.toLowerCase();
+        // Local matches from fetched parking lots
+        const localMatches = parkingLots
+          .filter(l => l.name && l.name.toLowerCase().includes(lower))
+          .slice(0, 5)
+          .map(l => ({ type: 'lot', id: l._id, label: l.name, lat: l.lat, lon: l.lon }));
 
-  const handleRequestLocation = () => {
-    setTrackingEnabled(true);
+        // Remote place suggestions (Nominatim)
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery + ', Nepal')}&limit=5`);
+        const places = await res.json();
+        const placeSuggestions = (places || []).map(p => ({ type: 'place', label: p.display_name, lat: parseFloat(p.lat), lon: parseFloat(p.lon) }));
+
+        // Merge and dedupe by label
+        const merged = [...localMatches, ...placeSuggestions];
+        const seen = new Set();
+        const dedup = merged.filter(s => {
+          if (seen.has(s.label)) return false; seen.add(s.label); return true;
+        });
+
+        setSearchSuggestions(dedup.slice(0, 6));
+        setShowSuggestions(true);
+      } catch (err) {
+        console.error('Suggestion fetch error', err);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [searchQuery, parkingLots]);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    window.addEventListener('click', handler);
+    return () => window.removeEventListener('click', handler);
+  }, []);
+
+  // --- Logic: Live Geolocation Tracking ---
+  // Use global location context for persistent tracking
+ 
+
+  // When userLocation changes, refresh lots distances and fetch nearby lots
+  useEffect(() => {
+    if (!userLocation) return;
+    const [lat, lon] = userLocation;
+    // Re-calculate distances for existing lots without fetching again
+    setParkingLots(prevLots => {
+      const updated = prevLots.map(lot => ({
+        ...lot,
+        distance: calculateDistance(lat, lon, lot.lat, lot.lon)
+      })).sort((a, b) => a.distance - b.distance);
+      return updated;
+    });
+
+    // Fetch nearby lots based on real location
+    fetchData(lat, lon);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLocation]);
+
+  // Booking modal state
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [selectedLot, setSelectedLot] = useState(null);
+  const [slotsCount, setSlotsCount] = useState(1);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [bookingLoading, setBookingLoading] = useState(false);
+
+  const openBooking = (lot) => {
+    setSelectedLot(lot);
+    setSlotsCount(1);
+    setStartTime('');
+    setEndTime('');
+    setBookingOpen(true);
+  };
+
+  const submitBooking = async () => {
+    if (!selectedLot) return;
+    if (!startTime || !endTime) return alert('Please enter start and end time.');
+    try {
+      setBookingLoading(true);
+      const token = localStorage.getItem('token');
+      const payload = {
+        parkingLotId: selectedLot._id,
+        slots: Number(slotsCount),
+        startTime: new Date(startTime).toISOString(),
+        endTime: new Date(endTime).toISOString()
+      };
+
+      const res = await fetch('http://localhost:8000/api/v1/parking/book', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert('Booking successful!');
+        setBookingOpen(false);
+        // Refresh lots to update occupancy
+        fetchData(userLocation?.[0], userLocation?.[1]);
+      } else {
+        alert(data.message || 'Booking failed.');
+      }
+    } catch (err) {
+      console.error('Booking error', err);
+      alert('Booking failed.');
+    } finally {
+      setBookingLoading(false);
+    }
   };
 
   // --- Logic: Live Parking Timer & Fee ---
@@ -259,6 +348,9 @@ const Dashboard = () => {
 
     return () => clearInterval(interval);
   }, [isParked, activeSession]);
+
+  const { user } = useAuth();
+  const avatarLetter = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
 
   return (
     <div className="dashboard-container">
@@ -343,10 +435,11 @@ const Dashboard = () => {
 
       {/* Overlaid Header */}
       <header className="dashboard-header">
-        <div className="profile-pic">
-          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" />
-        </div>
-        <div className="search-bar-container">
+        <button className="menu-btn" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+          <Menu size={22} />
+        </button>
+
+        <div className="search-bar-container" ref={suggestionsRef}>
           <Search size={18} className="search-icon" />
           <input 
             type="text" 
@@ -354,13 +447,65 @@ const Dashboard = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleSearch}
+            onFocus={() => { if (searchSuggestions.length) setShowSuggestions(true); }}
           />
+
+          {showSuggestions && searchSuggestions.length > 0 && (
+            <div className="suggestions-dropdown">
+              {searchSuggestions.map((s, idx) => (
+                <div key={idx} className="suggestion-item" onClick={() => {
+                  setSearchQuery(s.label);
+                  setMapCenter([s.lat, s.lon]);
+                  if (s.type === 'lot') setDestination([s.lat, s.lon]);
+                  setShowSuggestions(false);
+                }}>
+                  <div className="suggestion-type">{s.type === 'lot' ? 'Lot' : 'Place'}</div>
+                  <div className="suggestion-label">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <button className="notification-btn">
           <Bell size={22} />
           <span className="notification-badge"></span>
         </button>
+
+        <button className="header-profile" onClick={() => window.location.href = '/profile'}>
+          <div className="avatar-letter">{avatarLetter}</div>
+          <div className="profile-meta">
+            <div className="profile-name">{user?.name || 'User'}</div>
+            <div className="profile-email">{user?.email || ''}</div>
+          </div>
+        </button>
       </header>
+
+      {/* Sidebar for Nearby Parking */}
+      <div className={`sidebar-backdrop ${sidebarOpen ? 'visible' : ''}`} onClick={() => setSidebarOpen(false)} />
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          <h3>Nearby Parking</h3>
+          <button className="close-sidebar" onClick={() => setSidebarOpen(false)}>×</button>
+        </div>
+        <div className="sidebar-list">
+          {parkingLots.length === 0 && <div className="empty-note">No nearby lots found.</div>}
+          {parkingLots.map(lot => (
+            <div key={lot._id} className="sidebar-lot">
+              <div className="sidebar-lot-left">
+                <img src={`https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&q=80&w=200`} alt={lot.name} />
+              </div>
+              <div className="sidebar-lot-right">
+                <div className="lot-title">{lot.name}</div>
+                <div className="lot-sub">{lot.distance ? `${lot.distance.toFixed(2)} km` : 'Nearby'} • NPR {lot.pricePerHour}/hr</div>
+                <div style={{marginTop:8, display:'flex', gap:8}}>
+                  <button className={`book-btn ${lot.status}`} disabled={lot.status === 'full'} onClick={() => openBooking(lot)}>{lot.status === 'full' ? 'Sold Out' : 'Book'}</button>
+                  <button className="directions-btn-outline" onClick={() => { setSidebarOpen(false); setMapCenter([lot.lat, lot.lon]); setDestination([lot.lat, lot.lon]); startTracking(); }} title="Show Path"> <Navigation size={16} /> </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </aside>
 
       {/* Overlaid Category Tabs */}
       <div className="category-tabs">
@@ -407,74 +552,32 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Slidable Bottom Sheet (Discovery Section) */}
-      <section className={`discovery-section ${isSheetExpanded ? 'expanded' : 'collapsed'}`}>
-        <div className="sheet-handle-container" onClick={() => setIsSheetExpanded(!isSheetExpanded)}>
-          <div className="sheet-handle"></div>
-          <div className="section-header">
-            <h3>Nearby Parking</h3>
-            <button className="view-all">View All</button>
+      {/* Bottom discovery sheet removed — Nearby Parking is now in the sidebar */}
+
+      {/* Booking Modal */}
+      {bookingOpen && selectedLot && (
+        <div className="modal-backdrop" onClick={() => setBookingOpen(false)}>
+          <div className="booking-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Book: {selectedLot.name}</h3>
+            <div className="booking-row">
+              <label>Slots</label>
+              <input type="number" min={1} max={Math.max(1, selectedLot.totalSpots - (selectedLot.occupiedSpots||0))} value={slotsCount} onChange={(e) => setSlotsCount(e.target.value)} />
+            </div>
+            <div className="booking-row">
+              <label>Start</label>
+              <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            </div>
+            <div className="booking-row">
+              <label>End</label>
+              <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+            </div>
+            <div className="booking-actions">
+              <button className="btn secondary" onClick={() => setBookingOpen(false)}>Cancel</button>
+              <button className="btn primary" onClick={submitBooking} disabled={bookingLoading}>{bookingLoading ? 'Booking...' : 'Confirm Booking'}</button>
+            </div>
           </div>
         </div>
-
-        <div className="horizontal-scroll">
-          {parkingLots.map(lot => (
-            <div key={lot._id} className="parking-lot-card">
-              <div className="lot-image">
-                <img src={`https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&q=80&w=200`} alt={lot.name} />
-                <span className={`status-badge ${lot.status}`}>{lot.status.toUpperCase()}</span>
-              </div>
-              <div className="lot-content">
-                <h4>{lot.name}</h4>
-                <div className="lot-meta">
-                  <span><Navigation size={12} /> {lot.distance ? `${lot.distance.toFixed(2)} km` : 'Nearby'}</span>
-                  <span>• NPR {lot.pricePerHour}/hr</span>
-                </div>
-                <div className="occupancy-container">
-                  <div className="occupancy-bar">
-                    <div 
-                      className="occupancy-fill"
-                      style={{ width: `${(lot.occupiedSpots / lot.totalSpots) * 100}%` }}
-                    ></div>
-                  </div>
-                  <span className="occupancy-text">{lot.occupiedSpots}/{lot.totalSpots} slots</span>
-                </div>
-                <div className="card-actions" style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                  <button 
-                    className={`book-btn ${lot.status}`} 
-                    disabled={lot.status === 'full'}
-                    style={{ flex: 1 }}
-                  >
-                    {lot.status === 'full' ? 'Sold Out' : 'Book Now'}
-                  </button>
-                  <button 
-                    className="directions-btn-outline"
-                    onClick={() => {
-                      setDestination([lot.lat, lot.lon]);
-                      setIsSheetExpanded(false);
-                      setMapCenter([lot.lat, lot.lon]);
-                    }}
-                    style={{
-                      padding: '8px',
-                      borderRadius: '8px',
-                      border: '1px solid #6366f1',
-                      backgroundColor: 'transparent',
-                      color: '#6366f1',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                    title="Show Path"
-                  >
-                    <Navigation size={18} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      )}
 
       {/* Bottom Navigation Bar */}
       <nav className="bottom-nav">

@@ -6,7 +6,8 @@ import '../styles/Register.css';
 const Register = () => {
   // --- State Management ---
   const [formData, setFormData] = useState({
-    username: '',
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -44,7 +45,8 @@ const Register = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: formData.username,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
           email: formData.email,
           password: formData.password
         }),
@@ -90,22 +92,36 @@ const Register = () => {
 
           {/* Registration Form Section */}
           <form className="register-form" onSubmit={handleSubmit}>
-            {/* Username Input */}
-            <div className="input-group">
-              <div className="input-icon">
-                <User size={20} />
+            <div className="name-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              {/* First Name Input */}
+              <div className="input-group">
+                <div className="input-icon">
+                  <User size={20} />
+                </div>
+                <input
+                  type="text"
+                  name="firstName"
+                  placeholder="First Name"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                  required
+                />
               </div>
-              <input
-                type="text"
-                name="username"
-                placeholder="Username"
-                value={formData.username}
-                onChange={handleChange}
-                required
-                disabled={loading}
-              />
+              {/* Last Name Input */}
+              <div className="input-group">
+                <div className="input-icon">
+                  <User size={20} />
+                </div>
+                <input
+                  type="text"
+                  name="lastName"
+                  placeholder="Last Name"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
             </div>
-
             {/* Email Input */}
             <div className="input-group">
               <div className="input-icon">

@@ -3,6 +3,8 @@ const {
   getAllParkingLots,
   getActiveSession,
   startSession,
+  bookParking,
+  getUserBookings,
   completeSession,
 } = require("../controller/parking.controller");
 const { isauthenticated } = require("../middleware/auth");
@@ -12,6 +14,8 @@ const router = express.Router();
 router.get("/lots", getAllParkingLots);
 router.get("/active-session", isauthenticated, getActiveSession);
 router.post("/start-session", isauthenticated, startSession);
+router.post("/book", isauthenticated, bookParking);
+router.get("/bookings", isauthenticated, getUserBookings);
 router.post("/complete-session", isauthenticated, completeSession);
 
 module.exports = router;
