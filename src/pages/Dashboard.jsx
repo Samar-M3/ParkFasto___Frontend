@@ -289,6 +289,7 @@ const Dashboard = () => {
   const [isParked, setIsParked] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSession, setActiveSession] = useState(null);
+  const [bookedSession, setBookedSession] = useState(null);
   const [parkingLots, setParkingLots] = useState([]);
   const [timer, setTimer] = useState('00:00:00');
   const [currentBill, setCurrentBill] = useState(0);
@@ -356,6 +357,20 @@ const Dashboard = () => {
         if (sessionData.success && sessionData.data) {
           setActiveSession(sessionData.data);
           setIsParked(true);
+        } else {
+          setActiveSession(null);
+          setIsParked(false);
+        }
+
+        const bookingsRes = await fetch('https://parkfasto-backend-2.onrender.com/api/v1/parking/bookings', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const bookingsData = await bookingsRes.json();
+        if (bookingsData.success) {
+          const nextBookedSession = (bookingsData.data || [])
+            .filter((session) => session.status === 'booked')
+            .sort((a, b) => new Date(a.startTime || a.createdAt) - new Date(b.startTime || b.createdAt))[0] || null;
+          setBookedSession(nextBookedSession);
         }
       }
     } catch (error) {
@@ -745,6 +760,20 @@ const Dashboard = () => {
             Check Out
           </button>
         </div>
+      )}
+
+      {!isParked && bookedSession && (
+        <button
+          className="booked-session-widget"
+          onClick={() => navigate(`/booking/${bookedSession._id}`)}
+          title="View booked parking details"
+        >
+          <div className="booked-session-title">Booked Parking</div>
+          <div className="booked-session-lot">{bookedSession.parkingLot?.name || 'Parking Lot'}</div>
+          <div className="booked-session-meta">
+            Starts: {bookedSession.startTime ? new Date(bookedSession.startTime).toLocaleString() : 'Not set'}
+          </div>
+        </button>
       )}
 
       {/* Bottom discovery sheet removed — Nearby Parking is now in the sidebar */}
