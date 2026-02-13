@@ -20,7 +20,6 @@ import Profile from './pages/Profile';
 import Contact from './pages/Contact';
 import BookingHistory from './pages/BookingHistory';
 import ParkingLotDetail from './pages/ParkingLotDetail';
-import BookingDetail from './pages/BookingDetail';
 import PublicLayout from './components/PublicLayout';
 import BottomNavbar from './components/BottomNavbar';
 
@@ -69,7 +68,6 @@ function App() {
               <Route path="/contact" element={<ProtectedRoute roles={['user', 'driver']}><Contact /></ProtectedRoute>} />
               <Route path="/history" element={<ProtectedRoute roles={['user', 'driver']}><BookingHistory /></ProtectedRoute>} />
               <Route path="/parking/lot/:lotId" element={<ProtectedRoute roles={['user', 'driver']}><ParkingLotDetail /></ProtectedRoute>} />
-              <Route path="/booking/:bookingId" element={<ProtectedRoute roles={['user', 'driver']}><BookingDetail /></ProtectedRoute>} />
 
               <Route path="*" element={<NotFound />} />
               </Routes>

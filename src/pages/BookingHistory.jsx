@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
 import '../styles/Dashboard.css';
 
 export default function BookingHistory() {
-  const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -29,26 +27,6 @@ export default function BookingHistory() {
 
     fetchBookings();
   }, []);
-
-  const cancelBooking = async (bookingId) => {
-    try {
-      setError(null);
-      const token = localStorage.getItem('token');
-      const res = await axios.patch(
-        `https://parkfasto-backend-2.onrender.com/api/v1/parking/bookings/${bookingId}/cancel`,
-        {},
-        { headers: { Authorization: token ? `Bearer ${token}` : '' } }
-      );
-
-      const updated = res.data?.data;
-      if (updated?._id) {
-        setBookings((prev) => prev.map((b) => (b._id === updated._id ? updated : b)));
-      }
-    } catch (err) {
-      console.error('Failed to cancel booking', err);
-      setError(err.response?.data?.message || 'Failed to cancel booking');
-    }
-  };
 
   if (loading) return <div className="booking-history" style={{padding:16}}>Loading booking history...</div>;
   if (error) return <div className="booking-history" style={{padding:16,color:'var(--text-secondary)'}}>Error: {error}</div>;
@@ -90,21 +68,7 @@ export default function BookingHistory() {
 
               <div className="history-footer">
                 <div className="slots-pill">Slots: {b.slots || 1}</div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button className="lot-detail-btn" onClick={() => navigate(`/booking/${b._id}`)}>
-                    View Details
-                  </button>
-                  {b.status === 'booked' && (
-                    <button
-                      className="lot-detail-btn"
-                      style={{ color: '#fecaca', borderColor: 'rgba(248, 113, 113, 0.35)', background: 'rgba(127, 29, 29, 0.45)' }}
-                      onClick={() => cancelBooking(b._id)}
-                    >
-                      Cancel Booking
-                    </button>
-                  )}
-                  <div style={{color:'var(--text-secondary)', fontSize:13}}>{b.parkingLot?.pricePerHour ? `NPR ${b.parkingLot.pricePerHour}/hr` : ''}</div>
-                </div>
+                <div style={{color:'var(--text-secondary)', fontSize:13}}>{b.parkingLot?.pricePerHour ? `NPR ${b.parkingLot.pricePerHour}/hr` : ''}</div>
               </div>
             </div>
           ))}
